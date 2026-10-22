@@ -1,7 +1,6 @@
 import os
 import json
 import asyncio
-import threading
 from flask import Flask, request, jsonify
 from openai import OpenAI
 
@@ -10,7 +9,11 @@ app = Flask(__name__)
 # Автоматический ключ из настроек Render
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# Инструкция заставляет ИИ возвращать и разбор, и чистое английское слово отдельно для таймера
+# НОВАЯ ИСПРАВЛЕННАЯ ДВЕРЬ ДЛЯ RENDER (Убирает ошибку 404)
+@app.route('/', methods=['GET', 'HEAD'])
+def home():
+    return "OK", 200
+
 PROMPT_TEMPLATE = """Ты — универсальный ИИ-ассистент по английскому языку. Студент прислал: "{word}".
 1. Если текст на русском или это кривое произношение/суржик — пойми, какое ОДНО точное английское слово или устойчивую фразу он имел в виду.
 2. Сделай разбор этого английского слова на ЛЮБЫЕ жизненные темы.
@@ -29,7 +32,6 @@ async def send_spaced_repetition_push(chat_id, target_word):
     delay = 43200  # 12 часов
     print(f"[Таймер] Запущен для Chat ID {chat_id} на английское слово: {target_word}")
     await asyncio.sleep(delay)
-    # Бот пришлет пуш именно с правильным английским словом!
     print(f"[ПУШ-УВЕДОМЛЕНИЕ] Отправлено пользователю {chat_id}: Ну что, повторим слово {target_word}?")
 
 @app.route('/webhook', methods=['POST'])
@@ -43,14 +45,12 @@ def webhook():
 
     print(f"[Система] Получен запрос: {incoming_word}")
 
-    # Запрос к ChatGPT с требованием JSON формата
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         response_format={"type": "json_object"},
         messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(word=incoming_word)}]
     )
     
-    # Парсим ответ от ИИ
     result_json = json.loads(response.choices.message.content)
     ai_answer = result_json.get("analysis", "")
     detected_english_word = result_json.get("english_word", incoming_word)
@@ -61,7 +61,6 @@ def webhook():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-    # ПУШ СРАБОТАЕТ НА ИСПРАВЛЕННОЕ АНГЛИЙСКОЕ СЛОВО
     loop.create_task(send_spaced_repetition_push(chat_id, detected_english_word))
 
     return jsonify({"status": "success", "reply_text": ai_answer})
