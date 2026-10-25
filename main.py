@@ -26,8 +26,13 @@ PROMPT_TEMPLATE = """Ты — универсальный ИИ-ассистент
 Отвечай только чистым JSON, без лишних слов."""
 
 def send_telegram_message(chat_id, text):
-    url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": text})
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    response = requests.post(
+        url,
+        json={"chat_id": chat_id, "text": text},
+        timeout=20
+    )
+    response.raise_for_status()
 
 async def send_spaced_repetition_push(chat_id, target_word):
     delay = 43200  # 12 часов
@@ -67,8 +72,7 @@ def webhook():
             response_format={"type": "json_object"},
             messages=[{"role": "user", "content": PROMPT_TEMPLATE.format(word=text)}]
         )
-        
-        result_json = json.loads(response.choices.message.content)
+        result_json = json.loads(response.choices[0].message.content)
         ai_answer = result_json.get("analysis", "Не удалось сгенерировать разбор.")
         detected_english_word = result_json.get("english_word", text)
 
